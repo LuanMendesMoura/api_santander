@@ -29,8 +29,7 @@ final class UsuariosController extends AbstractController
         EntityManagerInterface $entityManager,
         UsuarioRepository $usuarioRepository,
         UserPasswordHasherInterface $passwordHasher
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $erros = [];
         // validar os dados do DTO
         if (!$usuarioDto->getCpf()) {
@@ -79,7 +78,7 @@ final class UsuariosController extends AbstractController
         //  cria o hash da senha
         $senhaComHash = $passwordHasher->hashPassword($usuario, $usuarioDto->getSenha());
         $usuario->setSenha($senhaComHash);
-        
+
         $usuario->setTelefone($usuarioDto->getTelefone());
 
         // criar registo na tb usuario
@@ -97,25 +96,18 @@ final class UsuariosController extends AbstractController
         $entityManager->flush();
 
         // retornar os dados de usuário e conta
-        $usuarioContaDto = new UsuarioContaDto();
-        $usuarioContaDto->setId($usuario->getId());
-        $usuarioContaDto->setNome($usuario->getNome());
-        $usuarioContaDto->setCpf($usuario->getCpf());
-        $usuarioContaDto->setEmail($usuario->getEmail());
-        $usuarioContaDto->setTelefone($usuario->getTelefone());
-        $usuarioContaDto->setNumeroConta($conta->getNumero());
-        $usuarioContaDto->setSaldo($conta->getSaldo());
+        $usuarioContaDto = $this->montarUsuarioContaDto($conta);
 
         return $this->json($usuarioContaDto, status: 201);
     }
 
-    #[Route('/usuarios/{id}', name: 'usuarios_buscar', methods: ['GET'])]
-    public function buscarPorId(
-        int $id,
+    #[Route('/usuarios/sessao', name: 'usuarios_buscar', methods: ['GET'])]
+    public function buscarPorSessao(
         ContaRepository $contaRepository
     ) {
+        $usuario = $this->getUser();
 
-        $conta = $contaRepository->findByUsuarioId($id);
+        $conta = $contaRepository->findByUsuarioId($usuario->getId());
 
         if (!$conta) {
             return $this->json([
@@ -123,6 +115,32 @@ final class UsuariosController extends AbstractController
             ], status: 404);
         }
 
+        $usuarioContaDto = $this->montarUsuarioContaDto($conta);
+
+        return $this->json($usuarioContaDto);
+    }
+
+    #[Route('/usuarios', name: 'usuarios_buscar_filtro', methods: ['GET'])]
+    public function buscarPorFiltro(
+        #[MapQueryString()]
+        UsuarioContaFilter $filter,
+
+        ContaRepository $contaRepository
+    ): JsonResponse {
+        $filtro = $filter->getPesquisa();
+        $contas = $contaRepository->findByFiltro($filtro);
+
+        $usuarioContaList = [];
+        foreach ($contas as $conta) {
+            $usuarioContaDto = $this->montarUsuarioContaDto($conta);
+            array_push($usuarioContaList, $usuarioContaDto);
+        }
+
+        return $this->json($usuarioContaList);
+    }
+
+    private function montarUsuarioContaDto(Conta $conta): UsuarioContaDto
+    {
         $usuarioContaDto = new UsuarioContaDto();
         $usuarioContaDto->setId($conta->getUsuario()->getId());
         $usuarioContaDto->setNome($conta->getUsuario()->getNome());
@@ -131,19 +149,6 @@ final class UsuariosController extends AbstractController
         $usuarioContaDto->setTelefone($conta->getUsuario()->getTelefone());
         $usuarioContaDto->setNumeroConta($conta->getNumero());
         $usuarioContaDto->setSaldo($conta->getSaldo());
-
-        return $this->json($usuarioContaDto);
-    }
-
-    #[Route('/usuarios', name: 'usuarios_buscar_filtro', methods: ['GET'])] 
-    public function buscarPorFiltro (
-        #[MapQueryString()]
-        UsuarioContaFilter $filter,
-
-        ContaRepository $contaRepository
-    ): JsonResponse {
-        $filtro = $filter->getPesquisa();
-        $contas = $contaRepository->findByFiltro($filtro);
-        return $this->json($contas);
+        return $usuarioContaDto;
     }
 }

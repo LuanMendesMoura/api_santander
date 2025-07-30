@@ -81,7 +81,7 @@ final class TransacoesController extends AbstractController
         if ((float) $contaOrigem->getSaldo() < (float) $entrada->getValor()) {
             return $this->json([
                 'message' => 'Saldo insuficiente!'
-            ]);
+            ], 400);
         }
 
         // realizar a transação e salvar no banco
